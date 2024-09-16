@@ -1,5 +1,5 @@
 use crate::metadata::{read_metadata, MusicFile};
-use std::fs::{create_dir_all, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -34,4 +34,29 @@ pub fn scan_directory(dir: String, lib_file: &str) {
     serde_json::to_writer_pretty(file, &library).unwrap();
 
     println!("Scanning Complete!");
+}
+
+pub fn load_library(lib_file: &str) -> Vec<MusicFile> {
+    let file = File::open(lib_file);
+
+    match file {
+        Ok(file) => {
+            let library: Vec<MusicFile> = serde_json::from_reader(file).unwrap();
+            library
+        }
+        Err(_) => {
+            vec![]
+        }
+    }
+}
+
+pub fn list_songs(lib_file: &str) {
+    let library = load_library(lib_file);
+
+    for song in library {
+        println!(
+            "{} - {} [{}]\n -- path: {}",
+            song.artist, song.title, song.album, song.path
+        );
+    }
 }

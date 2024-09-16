@@ -17,7 +17,7 @@ fn main() {
             println!("Scanning {directory}...");
             scanner::scan_directory(directory, lib_file)
         }
-        cli::Command::List => println!("Listing Songs"),
+        cli::Command::List => scanner::list_songs(lib_file),
         cli::Command::Play { file } => player::play_song(file),
     }
 }
