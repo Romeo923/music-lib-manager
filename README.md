@@ -26,6 +26,7 @@ A simple command-line music library manager built with Rust. This project scans 
 │   └── scan.rs              # Directory scanning and file management
 ├── Cargo.toml               # Rust dependencies and project metadata
 └── README.md                # This file
+```
 
 ## Dependencies
 - [Rust](https://www.rust-lang.org/) (Latest stable version)
