@@ -13,8 +13,8 @@ A simple command-line music library manager built with Rust. This project scans 
 
 - **Playlists**:
   - Create and manage custom playlists.
-  - Save playlists in a separate JSON file.
   - Add or remove songs from playlists.
+  - Queue playlists
 
 ## Project Structure
 
