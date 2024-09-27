@@ -1,63 +1,76 @@
-mod metadata;
-mod player;
-mod scanner;
+mod cli;
+mod music_library;
 
+use clap::Parser;
 use home::home_dir;
-use player::Player;
+use music_library::MusicLibrary;
 
 fn main() {
     let home = home_dir().expect("Unable ot find home directory");
     let lib_file = home.join(".local/share/music-lib-manager/music_library.json");
     let lib_file = lib_file.to_str().unwrap();
 
-    let mut my_player = Player::new();
+    let mut lib = match MusicLibrary::load_from_file(lib_file) {
+        Ok(lib) => lib,
+        Err(_) => MusicLibrary::new(),
+    };
 
-    loop {
-        println!("\nEnter command:\n  scan <dir>\n  list\n  play <file_path>\n  pause\n  resume\n  stop\n  exit | quit | q");
-        let mut input = String::new();
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
+    let cli = cli::Cli::parse();
 
-        let mut words = input.trim().split_whitespace();
-        let command = words.next();
-        let argument = words.next();
-
-        match command {
-            Some("scan") => {
-                if let Some(dir) = argument {
-                    scanner::scan_directory(dir.to_string(), lib_file);
-                }
-            }
-            Some("list") => {
-                scanner::list_songs(lib_file);
-            }
-            Some("play") => {
-                if let Some(file_path) = argument {
-                    my_player.play(file_path.to_string());
-                }
-            }
-            Some("pause") => {
-                my_player.pause();
-            }
-            Some("resume") => {
-                my_player.resume();
-            }
-            Some("stop") => {
-                my_player.stop();
-            }
-            Some("exit") => {
-                return;
-            }
-            Some("quit") => {
-                return;
-            }
-            Some("q") => {
-                return;
-            }
-            _ => {
-                println!("Invalid Command");
-            }
+    match cli.command {
+        cli::Commands::Play { name } => {
+            println!("Playing: {name}!");
         }
+        cli::Commands::Queue { name } => {
+            println!("Queueing: {name}!");
+        }
+        cli::Commands::Scan { directory } => {
+            lib.scan_directory(&directory);
+        }
+        cli::Commands::Songs { action } => match action {
+            None => lib.list_songs(),
+            Some(command) => match command {
+                cli::SongAction::Add { path } => {
+                    lib.add_song(path);
+                }
+                cli::SongAction::View { name } => {
+                    lib.view_song(name);
+                }
+                cli::SongAction::Edit { name, field, value } => {
+                    lib.edit_song(name, field, value);
+                }
+                cli::SongAction::Remove { name } => {
+                    lib.remove_song(name);
+                }
+            },
+        },
+        cli::Commands::Playlists { action } => match action {
+            None => lib.list_playlists(),
+            Some(command) => match command {
+                cli::PlaylistAction::Create { name } => {
+                    lib.create_playlist(name);
+                }
+                cli::PlaylistAction::View { name } => {
+                    lib.view_playlist(name);
+                }
+                cli::PlaylistAction::Add { name, song } => {
+                    lib.add_song_playlist(name, song);
+                }
+                cli::PlaylistAction::Edit { name, field, value } => {
+                    lib.edit_playist(name, field, value);
+                }
+                cli::PlaylistAction::Remove { name, song } => {
+                    lib.remove_playlist_song(name, song);
+                }
+                cli::PlaylistAction::Delete { name } => {
+                    lib.delete_playlist(name);
+                }
+            },
+        },
     }
+
+    match lib.save_to_file(lib_file) {
+        Ok(_) => {}
+        Err(_) => println!("Error while saving data"),
+    };
 }
