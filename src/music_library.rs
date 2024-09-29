@@ -1,5 +1,4 @@
 use crate::cli::{EditPlaylist, EditSong};
-use clap::Parser;
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::ItemKey;
