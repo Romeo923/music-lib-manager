@@ -1,3 +1,4 @@
+use crate::config;
 use crate::music_library::{Playlist, Song};
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -17,17 +18,23 @@ impl Queue {
         }
     }
 
-    pub fn save_to_file(&self, file_name: &str) -> io::Result<()> {
+    pub fn save(&self) -> io::Result<()> {
+        let file_name = config::get_queue_file_path();
+        if let Some(parent) = file_name.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
         let file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(file_name)?;
-        let _ = serde_json::to_writer_pretty(file, self);
+        serde_json::to_writer_pretty(file, self)?;
         Ok(())
     }
 
-    pub fn load_from_file(file_name: &str) -> io::Result<Self> {
+    pub fn load() -> io::Result<Self> {
+        let file_name = config::get_queue_file_path();
         let file = File::open(file_name)?;
         let reader = BufReader::new(file);
         let queue: Queue = serde_json::from_reader(reader)?;
@@ -42,6 +49,10 @@ impl Queue {
         for song in playlist.songs.iter() {
             self.add_song(song.clone());
         }
+    }
+
+    pub fn pop(&mut self) -> Option<Song> {
+        self.songs.pop_front()
     }
 
     pub fn remove_song(&mut self, index: usize) -> Option<Song> {
@@ -61,7 +72,7 @@ impl Queue {
             println!("The Queue is empty!");
         } else {
             for (i, song) in self.songs.iter().enumerate() {
-                println!("{} - Song: {}", i, song.name.clone());
+                println!("{} - {} by {}", i, song.name.clone(), song.artist.clone());
             }
         }
     }

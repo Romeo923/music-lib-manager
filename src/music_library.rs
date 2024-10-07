@@ -1,4 +1,5 @@
 use crate::cli::{EditPlaylist, EditSong};
+use crate::config;
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::ItemKey;
@@ -39,7 +40,12 @@ impl MusicLibrary {
         }
     }
 
-    pub fn save_to_file(&self, file_name: &str) -> io::Result<()> {
+    pub fn save(&self) -> io::Result<()> {
+        let file_name = config::get_library_file_path();
+        if let Some(parent) = file_name.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
         let file = File::create(file_name)?;
         let json_data = serde_json::to_string_pretty(self)?;
         let mut writer = io::BufWriter::new(file);
@@ -47,7 +53,8 @@ impl MusicLibrary {
         Ok(())
     }
 
-    pub fn load_from_file(file_name: &str) -> io::Result<Self> {
+    pub fn load() -> io::Result<Self> {
+        let file_name = config::get_library_file_path();
         let mut file = File::open(file_name)?;
         let mut json_data = String::new();
         file.read_to_string(&mut json_data)?;

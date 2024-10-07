@@ -1,27 +1,21 @@
 mod cli;
 mod music_library;
 // mod player;
+mod config;
 mod queue;
 
 use clap::Parser;
-use home::home_dir;
 use music_library::MusicLibrary;
 // use player::Player;
 use queue::Queue;
 
 fn main() {
-    let home = home_dir().expect("Unable ot find home directory");
-    let lib_file = home.join(".local/share/music-lib-manager/music_library.json");
-    let lib_file = lib_file.to_str().unwrap();
-    let queue_file = home.join(".local/share/music-lib-manager/queue.json");
-    let queue_file = queue_file.to_str().unwrap();
-
-    let mut lib = match MusicLibrary::load_from_file(lib_file) {
+    let mut lib = match MusicLibrary::load() {
         Ok(lib) => lib,
         Err(_) => MusicLibrary::new(),
     };
 
-    let mut queue = match Queue::load_from_file(queue_file) {
+    let mut queue = match Queue::load() {
         Ok(queue) => queue,
         Err(_) => Queue::new(),
     };
@@ -124,12 +118,12 @@ fn main() {
         },
     }
 
-    match lib.save_to_file(lib_file) {
+    match lib.save() {
         Ok(_) => {}
         Err(_) => println!("Error while saving data"),
     };
 
-    match queue.save_to_file(queue_file) {
+    match queue.save() {
         Ok(_) => {}
         Err(_) => println!("Error while saving data"),
     };
