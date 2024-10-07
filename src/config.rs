@@ -12,3 +12,8 @@ pub fn get_library_file_path() -> PathBuf {
     let home = home_dir().expect("Unable to find home directory");
     home.join(DATA_DIR).join("music_library.json")
 }
+
+pub fn get_player_file_path() -> PathBuf {
+    let home = home_dir().expect("Unable to find home directory");
+    home.join(DATA_DIR).join("player_state.json")
+}

@@ -1,12 +1,12 @@
 mod cli;
-mod music_library;
-// mod player;
 mod config;
+mod music_library;
+mod player;
 mod queue;
 
 use clap::Parser;
 use music_library::MusicLibrary;
-// use player::Player;
+use player::Player;
 use queue::Queue;
 
 fn main() {
@@ -20,25 +20,28 @@ fn main() {
         Err(_) => Queue::new(),
     };
 
-    // load player rather than make a new one
-    // similar to how lib is initialized
-    // let mut player = Player::new();
-
     let cli = cli::Cli::parse();
 
     match cli.command {
         cli::Commands::Play => {
-            // player.play();
+            Player::play();
         }
         cli::Commands::Pause => {
-            // player.pause();
+            Player::pause();
         }
         cli::Commands::Resume => {
-            // player.resume();
+            Player::resume();
+        }
+        cli::Commands::Skip => {
+            Player::skip();
         }
         cli::Commands::Stop => {
-            // player.stop();
+            Player::stop();
         }
+        cli::Commands::Status => match Player::current_song() {
+            Some(song) => println!("Now playing: {}", song.name.clone()),
+            None => println!("No songs playing..."),
+        },
         cli::Commands::Queue { action } => match action {
             None => queue.list(),
             Some(command) => match command {

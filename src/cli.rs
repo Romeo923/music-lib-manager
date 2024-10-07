@@ -17,8 +17,12 @@ pub enum Commands {
     Pause,
     /// Resume playback
     Resume,
+    /// Skip current song
+    Skip,
     /// Stop playback
     Stop,
+    /// View playback status
+    Status,
     /// Add a song or playlist to the queue
     Queue {
         #[clap(subcommand)]
