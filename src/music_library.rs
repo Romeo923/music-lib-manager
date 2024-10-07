@@ -10,7 +10,7 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Song {
     pub name: String,
     pub artist: String,
@@ -134,6 +134,10 @@ impl MusicLibrary {
         }
     }
 
+    pub fn get_song(&self, song_name: String) -> Option<&Song> {
+        self.songs.get(&song_name)
+    }
+
     // PLAYLISTS
 
     pub fn list_playlists(&self) {
@@ -210,6 +214,10 @@ impl MusicLibrary {
         } else {
             println!("Playlist '{name}' does not exist.");
         }
+    }
+
+    pub fn get_playlist(&self, playlist_name: String) -> Option<&Playlist> {
+        self.playlists.get(&playlist_name)
     }
 }
 
