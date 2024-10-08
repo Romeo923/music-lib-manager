@@ -6,7 +6,7 @@ use lofty::tag::ItemKey;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -229,7 +229,9 @@ impl MusicLibrary {
 }
 
 fn read_metadata(path: &Path) -> Option<Song> {
-    let tagged_file = Probe::open(path).ok()?.read().ok()?;
+    let path = fs::canonicalize(path).ok()?;
+
+    let tagged_file = Probe::open(&path).ok()?.read().ok()?;
 
     let file_name = path.file_stem()?.to_string_lossy().to_string();
     let file_path = path.to_string_lossy().to_string();
