@@ -20,28 +20,28 @@ fn main() {
         Err(_) => Queue::new(),
     };
 
+    let player = Player::load();
     let cli = cli::Cli::parse();
 
     match cli.command {
         cli::Commands::Play => {
-            Player::play();
+            player.play();
         }
         cli::Commands::Pause => {
-            Player::pause();
+            player.pause();
         }
         cli::Commands::Resume => {
-            Player::resume();
+            player.resume();
         }
         cli::Commands::Skip => {
-            Player::skip();
+            player.skip();
         }
         cli::Commands::Stop => {
-            Player::stop();
+            player.stop();
         }
-        cli::Commands::Status => match Player::current_song() {
-            Some(song) => println!("Now playing: {}", song.name.clone()),
-            None => println!("No songs playing..."),
-        },
+        cli::Commands::Status => {
+            player.status();
+        }
         cli::Commands::Queue { action } => match action {
             None => queue.list(),
             Some(command) => match command {
@@ -60,7 +60,9 @@ fn main() {
                     }
                 }
                 cli::QueueAction::Remove { index } => {
-                    queue.remove_song(index);
+                    if let Err(e) = queue.remove_song(index) {
+                        println!("{e}");
+                    }
                 }
                 cli::QueueAction::List => {
                     queue.list();
@@ -96,23 +98,33 @@ fn main() {
         cli::Commands::Playlists { action } => match action {
             None => lib.list_playlists(),
             Some(command) => match command {
-                cli::PlaylistAction::Create { name } => {
-                    lib.create_playlist(name);
+                cli::PlaylistAction::Create { playlist_name } => {
+                    lib.create_playlist(playlist_name);
                 }
-                cli::PlaylistAction::View { name } => {
-                    lib.view_playlist(name);
+                cli::PlaylistAction::View { playlist_name } => {
+                    lib.view_playlist(playlist_name);
                 }
-                cli::PlaylistAction::Add { name, song } => {
-                    lib.add_song_playlist(name, song);
+                cli::PlaylistAction::Add {
+                    playlist_name,
+                    song,
+                } => {
+                    lib.add_song_playlist(playlist_name, song);
                 }
-                cli::PlaylistAction::Edit { name, field, value } => {
-                    lib.edit_playist(name, field, value);
+                cli::PlaylistAction::Edit {
+                    playlist_name,
+                    field,
+                    value,
+                } => {
+                    lib.edit_playist(playlist_name, field, value);
                 }
-                cli::PlaylistAction::Remove { name, song } => {
-                    lib.remove_playlist_song(name, song);
+                cli::PlaylistAction::Remove {
+                    playlist_name,
+                    song,
+                } => {
+                    lib.remove_playlist_song(playlist_name, song);
                 }
-                cli::PlaylistAction::Delete { name } => {
-                    lib.delete_playlist(name);
+                cli::PlaylistAction::Delete { playlist_name } => {
+                    lib.delete_playlist(playlist_name);
                 }
                 cli::PlaylistAction::List => {
                     lib.list_playlists();
@@ -121,13 +133,11 @@ fn main() {
         },
     }
 
-    match lib.save() {
-        Ok(_) => {}
-        Err(_) => println!("Error while saving data"),
+    if let Err(_) = lib.save() {
+        println!("Error while saving data");
     };
 
-    match queue.save() {
-        Ok(_) => {}
-        Err(_) => println!("Error while saving data"),
+    if let Err(_) = queue.save() {
+        println!("Error while saving data");
     };
 }

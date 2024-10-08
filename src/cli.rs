@@ -23,16 +23,6 @@ pub enum Commands {
     Stop,
     /// View playback status
     Status,
-    /// Add a song or playlist to the queue
-    Queue {
-        #[clap(subcommand)]
-        action: Option<QueueAction>,
-    },
-    /// Scan a directory for music files
-    Scan {
-        /// Directory path
-        directory: String,
-    },
     /// Add, Edit, Remove, or List songs
     Songs {
         #[clap(subcommand)]
@@ -42,6 +32,16 @@ pub enum Commands {
     Playlists {
         #[clap(subcommand)]
         action: Option<PlaylistAction>,
+    },
+    /// Manage queue
+    Queue {
+        #[clap(subcommand)]
+        action: Option<QueueAction>,
+    },
+    /// Scan a directory for music files
+    Scan {
+        /// Directory path
+        directory: String,
     },
 }
 
@@ -84,30 +84,30 @@ pub enum EditSong {
 pub enum PlaylistAction {
     /// Create a playlist
     Create {
-        name: String,
+        playlist_name: String,
     },
     /// View playlist details
     View {
-        name: String,
+        playlist_name: String,
     },
     /// Add a song to playlist
     Add {
-        name: String,
+        playlist_name: String,
         song: String,
     },
     /// Remove a song from a playlist
     Remove {
-        name: String,
+        playlist_name: String,
         song: String,
     },
     /// Delete a playlist
     Delete {
-        name: String,
+        playlist_name: String,
     },
     /// Edit a playlist
     Edit {
         /// Playlist Name
-        name: String,
+        playlist_name: String,
         #[clap(subcommand)]
         /// Name
         field: EditPlaylist,

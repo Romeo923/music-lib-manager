@@ -3,11 +3,12 @@ use crate::config;
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::ItemKey;
+use rodio::Decoder;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -18,6 +19,14 @@ pub struct Song {
     pub album: String,
     pub duration: u64, //seconds
     pub path: String,
+}
+
+impl Song {
+    pub fn get_source(&self) -> Option<Decoder<BufReader<File>>> {
+        let file = File::open(&self.path).ok()?;
+        let source = Decoder::new(BufReader::new(file)).ok()?;
+        Some(source)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,16 +83,14 @@ impl MusicLibrary {
                 continue;
             }
 
-            if self
+            if !self
                 .songs
                 .values()
                 .any(|song| song.path == path.to_string_lossy().to_string())
             {
-                continue;
-            }
-
-            if let Some(song) = read_metadata(path) {
-                self.songs.insert(song.name.clone(), song);
+                if let Some(song) = read_metadata(path) {
+                    self.songs.insert(song.name.clone(), song);
+                }
             }
         }
     }
@@ -194,7 +201,7 @@ impl MusicLibrary {
                 EditPlaylist::Name => playlist.name = value,
             }
         } else {
-            println!("Song '{name} not found")
+            println!("Song '{name}' not found")
         }
     }
 
@@ -206,9 +213,9 @@ impl MusicLibrary {
                 .position(|song| song.name == song_name)
             {
                 playlist.songs.swap_remove(index);
-                println!("Removed {song_name} from {name}");
+                println!("Removed '{song_name}' from {name}");
             } else {
-                println!("{song_name} does not exist in {name}");
+                println!("'{song_name}' does not exist in {name}");
             }
         } else {
             println!("Playlist '{name}' does not exist");

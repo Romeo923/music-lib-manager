@@ -46,20 +46,26 @@ impl Queue {
     }
 
     pub fn add_playlist(&mut self, playlist: Playlist) {
-        for song in playlist.songs.iter() {
-            self.add_song(song.clone());
-        }
+        self.songs.extend(playlist.songs.into_iter());
     }
 
     pub fn pop(&mut self) -> Option<Song> {
         self.songs.pop_front()
     }
 
-    pub fn remove_song(&mut self, index: usize) -> Option<Song> {
+    pub fn peek(&self) -> Option<&Song> {
+        self.songs.front()
+    }
+
+    pub fn remove_song(&mut self, index: usize) -> Result<Song, String> {
         if let Some(song) = self.songs.remove(index) {
-            Some(song)
+            Ok(song)
         } else {
-            None
+            Err(format!(
+                "Invalid index '{}' for queue size {}",
+                index,
+                self.songs.len()
+            ))
         }
     }
 

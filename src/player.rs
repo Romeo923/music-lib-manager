@@ -1,5 +1,5 @@
 use daemonize::Daemonize;
-use rodio::{Decoder, OutputStream, Sink};
+use rodio::{OutputStream, Sink};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader};
@@ -15,7 +15,6 @@ pub enum PlayerState {
     Skip(Song),
     Paused(Song),
     Playing(Song),
-    Starting,
 }
 
 impl PlayerState {
@@ -43,153 +42,238 @@ impl PlayerState {
     }
 }
 
+struct Playing {
+    song: Song,
+}
+struct Paused {
+    song: Song,
+}
+struct Stopped;
+
+pub trait PlayerAction {
+    fn play(&self);
+    fn pause(&self);
+    fn resume(&self);
+    fn skip(&self);
+    fn stop(&self);
+    fn status(&self);
+}
+
+impl PlayerAction for Playing {
+    fn play(&self) {
+        println!(
+            "{} by {} is already playing",
+            self.song.name, self.song.artist
+        );
+    }
+    fn pause(&self) {
+        let _ = PlayerState::Paused(self.song.clone()).save();
+    }
+    fn resume(&self) {
+        println!(
+            "{} by {} is already playing",
+            self.song.name, self.song.artist
+        );
+    }
+    fn stop(&self) {
+        let _ = PlayerState::Stopped.save();
+    }
+    fn skip(&self) {
+        let _ = PlayerState::Skip(self.song.clone()).save();
+    }
+    fn status(&self) {
+        println!("Playing: {} by {}", self.song.name, self.song.artist);
+    }
+}
+
+impl PlayerAction for Paused {
+    fn play(&self) {
+        self.resume();
+    }
+    fn pause(&self) {
+        println!(
+            "{} by {} is already paused",
+            self.song.name, self.song.artist
+        );
+    }
+    fn resume(&self) {
+        let _ = PlayerState::Playing(self.song.clone()).save();
+    }
+    fn stop(&self) {
+        let _ = PlayerState::Stopped.save();
+    }
+    fn skip(&self) {
+        let _ = PlayerState::Skip(self.song.clone()).save();
+    }
+    fn status(&self) {
+        println!("Paused: {} by {}", self.song.name, self.song.artist);
+    }
+}
+
+impl PlayerAction for Stopped {
+    fn play(&self) {
+        match Queue::load() {
+            Ok(queue) => match queue.peek() {
+                Some(song) => {
+                    let _ = PlayerState::Playing(song.clone()).save();
+                    create_daemon();
+                }
+                None => println!("Queue is empty!"),
+            },
+            Err(_) => println!("Error loading queue"),
+        }
+    }
+    fn pause(&self) {
+        println!("No song playing");
+    }
+    fn resume(&self) {
+        println!("No song playing");
+    }
+    fn stop(&self) {
+        println!("No song playing");
+    }
+    fn skip(&self) {
+        println!("No song playing");
+    }
+    fn status(&self) {
+        println!("No songs playing");
+    }
+}
+
 pub struct Player;
 
 impl Player {
-    pub fn play() {
-        PlayerState::Starting.save();
+    pub fn load() -> Box<dyn PlayerAction> {
+        let player: Box<dyn PlayerAction> = match PlayerState::load() {
+            Ok(state) => match state {
+                PlayerState::Playing(song) => Box::new(Playing { song }),
+                PlayerState::Paused(song) => Box::new(Paused { song }),
+                PlayerState::Skip(song) => Box::new(Playing { song }),
+                PlayerState::Stopped => Box::new(Stopped),
+            },
+            Err(_) => {
+                let _ = PlayerState::Stopped.save();
+                Box::new(Stopped)
+            }
+        };
+        player
+    }
+}
 
-        let stdout = File::create("/tmp/music-lib-player.out").unwrap();
-        let stderr = File::create("/tmp/music-lib-player.err").unwrap();
+fn create_daemon() {
+    let stdout = File::create("/tmp/music-lib-player.out").unwrap();
+    let stderr = File::create("/tmp/music-lib-player.err").unwrap();
 
-        let daemonize = Daemonize::new()
-            .pid_file("/tmp/music-lib-player.pid")
-            .chown_pid_file(true)
-            .working_directory("/tmp")
-            .stdout(stdout)
-            .stderr(stderr)
-            .privileged_action(move || {
-                let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-                let sink = Sink::try_new(&stream_handle).unwrap();
+    let daemonize = Daemonize::new()
+        .pid_file("/tmp/music-lib-player.pid")
+        .chown_pid_file(true)
+        .working_directory("/tmp")
+        .stdout(stdout)
+        .stderr(stderr)
+        .privileged_action(move || {
+            let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+            let sink = Sink::try_new(&stream_handle).unwrap();
 
-                loop {
-                    let state = match PlayerState::load() {
-                        Ok(state) => state,
-                        Err(_) => {
-                            eprintln!("Error loading player state");
-                            break;
-                        }
-                    };
+            loop {
+                let state = match PlayerState::load() {
+                    Ok(state) => state,
+                    Err(_) => {
+                        eprintln!("Error loading player state");
+                        process::exit(1);
+                    }
+                };
 
-                    match state {
-                        PlayerState::Starting | PlayerState::Playing(_) => {
-                            if sink.is_paused() {
-                                sink.play();
-                            } else if sink.empty() {
-                                match Queue::load() {
-                                    Ok(mut queue) => {
-                                        if let Some((song, source)) = get_next_song_data(&mut queue)
-                                        {
+                match state {
+                    PlayerState::Playing(_) => {
+                        if sink.is_paused() {
+                            // resume if simk is paused
+                            sink.play();
+                        } else if sink.empty() {
+                            // if sink is empty, play next song in queue
+                            match Queue::load() {
+                                Ok(mut queue) => match queue.pop() {
+                                    Some(song) => match song.get_source() {
+                                        Some(source) => {
                                             sink.append(source);
                                             if let Ok(_) = queue.save() {
-                                                PlayerState::Playing(song).save();
+                                                let _ = PlayerState::Playing(song).save();
                                             } else {
                                                 eprintln!("Failed to update queue");
                                             }
-                                        } else {
-                                            sink.stop();
-                                            PlayerState::Stopped.save();
-                                            break;
                                         }
-                                    }
-                                    Err(_) => {
-                                        eprintln!("Failed to load queue.");
-                                        PlayerState::Stopped.save();
+                                        None => {
+                                            // unable to play song
+                                            let _ = PlayerState::Skip(song).save();
+                                        }
+                                    },
+                                    None => {
+                                        // Queue is empty
+                                        sink.stop();
+                                        let _ = PlayerState::Stopped.save();
                                         break;
                                     }
+                                },
+                                Err(_) => {
+                                    eprintln!("Failed to load queue.");
+                                    let _ = PlayerState::Stopped.save();
+                                    process::exit(1);
                                 }
                             }
                         }
-                        PlayerState::Paused(_) => {
-                            if !sink.is_paused() {
-                                sink.pause();
-                            }
+                    }
+                    PlayerState::Paused(_) => {
+                        if !sink.is_paused() {
+                            sink.pause();
                         }
-                        PlayerState::Skip(_) => {
-                            if !sink.is_paused() {
-                                sink.stop();
-                            }
-
-                            match Queue::load() {
-                                Ok(mut queue) => {
-                                    if let Some((song, source)) = get_next_song_data(&mut queue) {
+                    }
+                    PlayerState::Skip(_) => {
+                        sink.stop();
+                        // play next song in queue
+                        match Queue::load() {
+                            Ok(mut queue) => match queue.pop() {
+                                Some(song) => {
+                                    if let Some(source) = song.get_source() {
                                         sink.append(source);
                                         if let Ok(_) = queue.save() {
-                                            PlayerState::Playing(song).save();
+                                            let _ = PlayerState::Playing(song).save();
+                                        } else {
+                                            eprintln!("Failed to update queue");
+                                        }
+                                    } else {
+                                        // if we are unable to get source,
+                                        // save queue and keep skipping
+                                        if let Ok(_) = queue.save() {
+                                            let _ = PlayerState::Skip(song).save();
                                         } else {
                                             eprintln!("Failed to update queue");
                                         }
                                     }
                                 }
-                                Err(_) => {
-                                    eprintln!("Failed to load queue.");
-                                    PlayerState::Stopped.save();
-                                    break;
+                                None => {
+                                    // queue is empty
+                                    let _ = PlayerState::Stopped.save();
                                 }
-                            }
-                        }
-                        PlayerState::Stopped => {
-                            if !sink.empty() {
-                                sink.stop();
-                                break;
+                            },
+                            Err(_) => {
+                                eprintln!("Failed to load queue.");
+                                let _ = PlayerState::Stopped.save();
+                                process::exit(1);
                             }
                         }
                     }
-                    thread::sleep(Duration::from_secs(1));
+                    PlayerState::Stopped => {
+                        if !sink.empty() {
+                            sink.stop();
+                            break;
+                        }
+                    }
                 }
-                process::exit(0);
-            });
-        match daemonize.start() {
-            Ok(_) => println!("Starting Playback"),
-            Err(_) => println!("Error Starting Playback"),
-        }
-    }
-
-    pub fn pause() {
-        let state = PlayerState::load().unwrap();
-        if let PlayerState::Playing(song) = state {
-            PlayerState::Paused(song).save();
-        }
-    }
-
-    pub fn resume() {
-        let state = PlayerState::load().unwrap();
-        if let PlayerState::Paused(song) = state {
-            PlayerState::Playing(song).save();
-        }
-    }
-
-    pub fn stop() {
-        PlayerState::Stopped.save();
-    }
-
-    pub fn skip() {
-        let state = PlayerState::load().unwrap();
-        if let PlayerState::Playing(song) | PlayerState::Paused(song) = state {
-            PlayerState::Skip(song).save();
-        }
-    }
-
-    pub fn current_song() -> Option<Song> {
-        if let Ok(state) = PlayerState::load() {
-            match state {
-                PlayerState::Stopped => None,
-                PlayerState::Skip(ref song) => Some(song.clone()),
-                PlayerState::Paused(ref song) => Some(song.clone()),
-                PlayerState::Playing(ref song) => Some(song.clone()),
-                PlayerState::Starting => None,
+                thread::sleep(Duration::from_secs(1));
             }
-        } else {
-            eprintln!("Failed to load queue.");
-            PlayerState::Stopped.save();
-            None
-        }
+            process::exit(0);
+        });
+    match daemonize.start() {
+        Ok(_) => println!("Starting Playback"),
+        Err(_) => println!("Error Starting Playback"),
     }
-}
-
-fn get_next_song_data(queue: &mut Queue) -> Option<(Song, Decoder<BufReader<File>>)> {
-    let song = queue.pop()?;
-    let file = File::open(&song.path).ok()?;
-    let source = Decoder::new(BufReader::new(file)).ok()?;
-    Some((song, source))
 }
