@@ -3,6 +3,7 @@ use crate::config;
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::ItemKey;
+use rayon::prelude::*;
 use rodio::Decoder;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -72,26 +73,23 @@ impl MusicLibrary {
     }
 
     pub fn scan_directory(&mut self, directory: &String) {
-        for entry in WalkDir::new(directory)
+        let songs: Vec<Song> = WalkDir::new(directory)
             .into_iter()
+            .par_bridge()
             .filter_map(|e| e.ok())
-            .filter(|e| is_music_file(e.path()))
-        {
-            let path = entry.path();
+            .filter(|e| {
+                let path = e.path();
+                is_music_file(path)
+                    && !self
+                        .songs
+                        .values()
+                        .any(|song| song.path == path.to_string_lossy().to_string())
+            })
+            .filter_map(|e| read_metadata(e.path()))
+            .collect();
 
-            if !is_music_file(&path) {
-                continue;
-            }
-
-            if !self
-                .songs
-                .values()
-                .any(|song| song.path == path.to_string_lossy().to_string())
-            {
-                if let Some(song) = read_metadata(path) {
-                    self.songs.insert(song.name.clone(), song);
-                }
-            }
+        for song in songs {
+            self.songs.insert(song.name.clone(), song);
         }
     }
 
